@@ -20,6 +20,8 @@ message_tab, link_tab = st.tabs(
     ["💬 Message Checker", "🔗 Scam Link Checker"]
 )
 
+# ---------------- MESSAGE CHECKER ----------------
+
 with message_tab:
     st.subheader("AI Suspicious Message Checker")
     st.write("Check a message for potential scam warning signs.")
@@ -72,11 +74,13 @@ with message_tab:
                         "Could not connect to the AI service. Please try again."
                     )
 
+# ---------------- SCAM LINK CHECKER ----------------
+
 with link_tab:
     st.subheader("Scam Link Checker")
     st.write(
-        "Inspect a URL for common warning signs. "
-        "This checks the URL text only; it does not visit the website."
+        "Check a URL for common warning signs. "
+        "PrayShield does not visit the website or check live threat databases."
     )
 
     url_text = st.text_input(
@@ -87,9 +91,16 @@ with link_tab:
 
     if st.button("Check Link", key="check_link"):
         candidate = url_text.strip()
+        issues = []
 
         if not candidate:
             st.warning("Please enter a link first.")
+
+        elif any(char.isspace() for char in candidate):
+            st.warning(
+                "This address contains spaces. Check that you copied the full URL correctly."
+            )
+
         else:
             normalized = (
                 candidate
@@ -99,11 +110,12 @@ with link_tab:
 
             parsed = urlparse(normalized)
             hostname = parsed.hostname or ""
-            issues = []
+            scheme = parsed.scheme.lower()
 
-            if parsed.scheme.lower() not in ("http", "https"):
+            # Check URL format
+            if scheme not in ("http", "https"):
                 issues.append(
-                    "The URL uses an unexpected protocol."
+                    "The address uses an unexpected protocol."
                 )
 
             if not hostname or "." not in hostname:
@@ -111,72 +123,130 @@ with link_tab:
                     "The address does not look like a complete domain name."
                 )
 
-            if parsed.username or parsed.password:
+            # Detect misleading user information before the host
+            if parsed.username is not None or parsed.password is not None:
                 issues.append(
                     "The URL contains user-information before the host, "
-                    "which can be used to disguise the destination."
+                    "which can disguise the actual destination."
                 )
 
-            if hostname and hostname.replace(".", "").isdigit():
+            # Detect IP address hosts
+            if hostname and re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", hostname):
                 issues.append(
-                    "The host looks like a numeric IP address rather than "
-                    "a familiar domain name."
+                    "The host looks like an IP address instead of a domain name."
                 )
 
-            if hostname.startswith("xn--") or ".xn--" in hostname:
+            # Detect internationalized domain labels
+            if any(
+                label.lower().startswith("xn--")
+                for label in hostname.split(".")
+            ):
                 issues.append(
-                    "The domain contains an internationalized label that "
-                    "may need careful inspection for lookalike characters."
+                    "The domain contains an encoded internationalized label. "
+                    "Check carefully for lookalike characters."
                 )
 
-            if re.search(r"https?://", candidate.split("://", 1)[-1], re.I):
+            # Detect common URL-shortening services
+            shorteners = {
+                "bit.ly",
+                "tinyurl.com",
+                "t.co",
+                "is.gd",
+                "cutt.ly",
+                "rb.gy",
+                "shorturl.at",
+            }
+
+            if hostname.lower() in shorteners:
                 issues.append(
-                    "The address contains another URL scheme inside it; "
-                    "check the destination carefully."
+                    "This is a URL-shortening service. The final destination "
+                    "is not obvious from the shortened address."
+                )
+
+            # Detect common deceptive URL patterns
+            if "@" in parsed.netloc:
+                issues.append(
+                    "The address contains an @ symbol in its host section. "
+                    "Inspect the actual destination carefully."
+                )
+
+            if hostname.count(".") >= 4:
+                issues.append(
+                    "The domain has several subdomain levels. "
+                    "Check which organization actually owns it."
                 )
 
             if len(candidate) > 200:
                 issues.append(
-                    "The URL is unusually long. Long URLs are not always "
-                    "malicious, but can be harder to inspect."
+                    "The URL is unusually long and may be harder to inspect."
                 )
 
-            if parsed.scheme.lower() == "http":
+            if scheme == "http":
                 issues.append(
                     "This link uses HTTP rather than HTTPS, so the connection "
                     "does not provide HTTPS encryption."
                 )
 
+            # Check suspicious terms in the hostname only.
+            suspicious_terms = (
+                "verify",
+                "login",
+                "secure",
+                "account",
+                "wallet",
+                "password",
+                "update",
+                "confirm",
+            )
+
+            hostname_parts = hostname.lower().replace("-", ".").split(".")
+            matched_terms = [
+                term
+                for term in suspicious_terms
+                if any(term in part for part in hostname_parts)
+            ]
+
+            if matched_terms:
+                issues.append(
+                    "The domain contains terms often used in account-related "
+                    "links. These words alone do not prove a scam."
+                )
+
             st.subheader("URL Inspection Results")
-            st.write(f"**Detected domain:** {hostname or 'Could not identify'}")
+            st.write(
+                f"**Detected domain:** {hostname or 'Could not identify'}"
+            )
 
             if issues:
                 st.warning(
                     "Potential warning signs found. This does not prove "
                     "the link is malicious."
                 )
+
                 for issue in issues:
                     st.write(f"- {issue}")
             else:
-                st.info(
-                    "No obvious warning signs were detected by these basic "
-                    "checks. This does not mean the link is safe."
+                st.success(
+                    "No obvious warning signs were detected by these basic checks."
+                )
+                st.caption(
+                    "This does not mean the link is safe."
                 )
 
             st.markdown("**Safety advice**")
             st.write(
-                "Do not enter passwords, payment details, or OTPs on an "
-                "untrusted page. If the link claims to be from a bank or "
-                "company, open its official app or type its known website "
-                "address yourself."
+                "For important accounts, use the official app or type the "
+                "known website address yourself. Do not enter passwords, "
+                "payment details, or OTPs on an untrusted page."
             )
 
             st.caption(
-                "PrayShield only inspected the text of this URL. "
-                "It did not visit or verify the website."
+                "PrayShield inspected the URL text only. It did not visit "
+                "the website, verify its ownership, or check live threat databases."
             )
 
 st.divider()
 st.caption(
-    "AI assessments can be wrong. Verify important requests through official channels."
+    "PrayShield is an early prototype. AI and URL checks can make mistakes; "
+    "verify important requests through official channels."
 )
