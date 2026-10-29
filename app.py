@@ -15,6 +15,12 @@ API_URL = "https://praynova-ai-backend.prayretha.workers.dev"
 st.title("🛡️ PrayShield")
 st.write("Your AI-powered digital safety assistant.")
 st.caption("Early prototype | Under development")
+st.info(
+    "🔒 Privacy reminder: Do not paste passwords, OTPs, "
+    "bank account details, payment card numbers, or other "
+    "sensitive personal information into PrayShield. "
+    "Use only the information needed to check a message or link."
+)
 
 message_tab, link_tab = st.tabs(
     ["💬 Message Checker", "🔗 Scam Link Checker"]
