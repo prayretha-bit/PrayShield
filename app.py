@@ -45,11 +45,16 @@ with message_tab:
         else:
             with st.spinner("PrayShield AI is analyzing the message..."):
                 try:
-                    response = requests.post(
-                        API_URL,
-                        json={"message": message},
-                        timeout=60,
-                    )
+                    api_key = st.secrets["PRAYSHIELD_API_KEY"]
+
+response = requests.post(
+    API_URL,
+    json={"message": message},
+    headers={
+        "Authorization": f"Bearer {api_key}"
+    },
+    timeout=60,
+)
 
                     try:
                         data = response.json()
