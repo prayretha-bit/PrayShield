@@ -4,6 +4,11 @@ from urllib.parse import urlparse
 import requests
 import streamlit as st
 
+
+# --------------------------------------------------
+# PAGE CONFIGURATION
+# --------------------------------------------------
+
 st.set_page_config(
     page_title="PrayShield",
     page_icon="🛡️",
@@ -12,252 +17,304 @@ st.set_page_config(
 
 API_URL = "https://praynova-ai-backend.prayretha.workers.dev"
 
+
+# --------------------------------------------------
+# HEADER
+# --------------------------------------------------
+
 st.title("🛡️ PrayShield")
-st.write("Your AI-powered digital safety assistant.")
-st.caption("Early prototype | Under development")
-st.info(
-    "🔒 Privacy reminder: Do not paste passwords, OTPs, "
-    "bank account details, payment card numbers, or other "
-    "sensitive personal information into PrayShield. "
-    "Use only the information needed to check a message or link."
+st.subheader("Safer Today. Stronger Tomorrow.")
+
+st.write(
+    "PrayShield helps you identify possible scam messages "
+    "and suspicious website links."
 )
+
+st.info(
+    "Privacy reminder: Do not enter passwords, PINs, OTPs, "
+    "bank details, or other sensitive personal information."
+)
+
+
+# --------------------------------------------------
+# TABS
+# --------------------------------------------------
 
 message_tab, link_tab = st.tabs(
-    ["💬 Message Checker", "🔗 Scam Link Checker"]
+    ["📩 AI Message Checker", "🔗 Scam Link Checker"]
 )
 
-# ---------------- MESSAGE CHECKER ----------------
+
+# --------------------------------------------------
+# TAB 1: AI MESSAGE CHECKER
+# --------------------------------------------------
 
 with message_tab:
-    st.subheader("AI Suspicious Message Checker")
-    st.write("Check a message for potential scam warning signs.")
 
-    message = st.text_area(
-        "Paste a message to check:",
-        placeholder="Example: Your bank account will be blocked. Verify now...",
-        max_chars=5000,
-        key="message_input",
+    st.header("AI Message Checker")
+
+    st.write(
+        "Check a suspicious SMS, email, WhatsApp message, "
+        "or other text for possible scam warning signs."
     )
 
-    if st.button("Analyze Message", key="analyze_message"):
+    message = st.text_area(
+        "Paste the message here:",
+        height=180,
+        max_chars=5000,
+        placeholder="Paste the message you want to check...",
+    )
+
+    if st.button("🔍 Check Message", key="check_message"):
+
         if not message.strip():
             st.warning("Please enter a message first.")
+
         else:
             with st.spinner("PrayShield AI is analyzing the message..."):
+
                 try:
+                    # Read the API key from Streamlit Secrets
                     api_key = st.secrets["PRAYSHIELD_API_KEY"]
 
-response = requests.post(
-    API_URL,
-    json={"message": message},
-    headers={
-        "Authorization": f"Bearer {api_key}"
-    },
-    timeout=60,
-)
+                    # Send the message securely to the Worker
+                    response = requests.post(
+                        API_URL,
+                        json={"message": message},
+                        headers={
+                            "Authorization": f"Bearer {api_key}"
+                        },
+                        timeout=60,
+                    )
 
-                    try:
-                        data = response.json()
-                    except ValueError:
-                        data = {}
-
-                    if response.ok and data.get("success"):
-                        st.subheader("Analysis Results")
-                        st.write(
-                            data.get("analysis", "No analysis returned.")
-                        )
-                        st.info(
-                            data.get(
-                                "disclaimer",
-                                "AI assessments can be wrong. Verify important requests through official channels.",
-                            )
-                        )
-                    else:
+                    if response.status_code == 401:
                         st.error(
-                            data.get(
-                                "error",
-                                f"The AI request failed (HTTP {response.status_code}).",
-                            )
+                            "Authentication failed. Please check "
+                            "the API key configuration."
                         )
+
+                    elif response.status_code != 200:
+                        st.error(
+                            f"AI service error: HTTP "
+                            f"{response.status_code}. Please try again later."
+                        )
+
+                    else:
+                        result = response.json()
+
+                        if result.get("success") and result.get("analysis"):
+                            st.subheader("PrayShield Analysis")
+                            st.write(result["analysis"])
+
+                            st.caption(
+                                result.get(
+                                    "disclaimer",
+                                    "AI assessments can be wrong. "
+                                    "Verify important requests through "
+                                    "official channels.",
+                                )
+                            )
+
+                        else:
+                            st.error(
+                                result.get(
+                                    "error",
+                                    "The analysis could not be completed.",
+                                )
+                            )
+
+                except KeyError:
+                    st.error(
+                        "API key is missing. Please check "
+                        "Streamlit Secrets."
+                    )
+
+                except requests.exceptions.Timeout:
+                    st.error(
+                        "The AI service took too long to respond. "
+                        "Please try again."
+                    )
 
                 except requests.exceptions.RequestException:
                     st.error(
-                        "Could not connect to the AI service. Please try again."
+                        "Unable to connect to the AI service. "
+                        "Please try again later."
                     )
 
-# ---------------- SCAM LINK CHECKER ----------------
+                except ValueError:
+                    st.error(
+                        "The AI service returned an invalid response."
+                    )
+
+                except Exception:
+                    st.error(
+                        "Something went wrong. Please try again later."
+                    )
+
+
+# --------------------------------------------------
+# TAB 2: SCAM LINK CHECKER
+# --------------------------------------------------
 
 with link_tab:
-    st.subheader("Scam Link Checker")
+
+    st.header("Scam Link Checker")
+
     st.write(
-        "Check a URL for common warning signs. "
-        "PrayShield does not visit the website or check live threat databases."
+        "Check a website address for common suspicious URL patterns."
     )
 
-    url_text = st.text_input(
-        "Paste a suspicious link:",
+    url_input = st.text_input(
+        "Enter website link:",
         placeholder="https://example.com",
-        key="url_input",
     )
 
-    if st.button("Check Link", key="check_link"):
-        candidate = url_text.strip()
-        issues = []
+    if st.button("🔍 Check Link", key="check_link"):
 
-        if not candidate:
-            st.warning("Please enter a link first.")
-
-        elif any(char.isspace() for char in candidate):
-            st.warning(
-                "This address contains spaces. Check that you copied the full URL correctly."
-            )
+        if not url_input.strip():
+            st.warning("Please enter a website link.")
 
         else:
-            normalized = (
-                candidate
-                if "://" in candidate
-                else "https://" + candidate
-            )
+            url = url_input.strip()
 
-            parsed = urlparse(normalized)
-            hostname = parsed.hostname or ""
-            scheme = parsed.scheme.lower()
+            if not re.match(r"^https?://", url, re.IGNORECASE):
+                url = "https://" + url
 
-            # Check URL format
-            if scheme not in ("http", "https"):
-                issues.append(
-                    "The address uses an unexpected protocol."
+            try:
+                parsed_url = urlparse(url)
+                hostname = parsed_url.hostname
+
+                if not hostname or "." not in hostname:
+                    st.error("This does not look like a complete website address.")
+
+                else:
+                    warnings = []
+
+                    if parsed_url.scheme.lower() != "https":
+                        warnings.append(
+                            "The link does not use HTTPS encryption."
+                        )
+
+                    if "@" in parsed_url.netloc:
+                        warnings.append(
+                            "The link contains an @ symbol, "
+                            "which can hide the actual destination."
+                        )
+
+                    if parsed_url.username or parsed_url.password:
+                        warnings.append(
+                            "The address contains user information "
+                            "before the hostname."
+                        )
+
+                    if re.fullmatch(
+                        r"\d{1,3}(?:\.\d{1,3}){3}",
+                        hostname,
+                    ):
+                        warnings.append(
+                            "The website uses an IP address instead "
+                            "of a normal domain name."
+                        )
+
+                    if hostname.startswith("xn--") or ".xn--" in hostname:
+                        warnings.append(
+                            "The domain contains punycode, which can "
+                            "sometimes be used to imitate other domains."
+                        )
+
+                    shorteners = [
+                        "bit.ly",
+                        "tinyurl.com",
+                        "t.co",
+                        "goo.gl",
+                        "is.gd",
+                        "cutt.ly",
+                        "rb.gy",
+                    ]
+
+                    if hostname.lower() in shorteners:
+                        warnings.append(
+                            "This is a URL-shortening service. "
+                            "The final destination is not visible here."
+                        )
+
+                    if len(url) > 150:
+                        warnings.append(
+                            "The URL is unusually long."
+                        )
+
+                    if hostname.count(".") >= 4:
+                        warnings.append(
+                            "The website has several subdomains. "
+                            "Check the actual registered domain carefully."
+                        )
+
+                    suspicious_words = [
+                        "verify",
+                        "account",
+                        "login",
+                        "secure",
+                        "update",
+                        "banking",
+                        "payment",
+                        "wallet",
+                        "password",
+                    ]
+
+                    if any(
+                        word in hostname.lower()
+                        for word in suspicious_words
+                    ):
+                        warnings.append(
+                            "The domain contains words commonly used "
+                            "in account or payment-related links. "
+                            "This alone does not prove it is fraudulent."
+                        )
+
+                    st.subheader("Link Analysis")
+
+                    st.write(f"**Website:** {hostname}")
+
+                    if warnings:
+                        st.warning(
+                            "Caution: This link has some patterns "
+                            "that deserve attention."
+                        )
+
+                        for warning in warnings:
+                            st.write(f"⚠️ {warning}")
+
+                    else:
+                        st.success(
+                            "No obvious suspicious URL patterns were found."
+                        )
+
+                    st.info(
+                        "This checker uses basic URL pattern analysis. "
+                        "It does not visit the website or check a live "
+                        "malware or phishing database. A clean result "
+                        "does not guarantee that a website is safe."
+                    )
+
+            except ValueError:
+                st.error(
+                    "Unable to analyze this address. "
+                    "Please enter a valid website link."
                 )
 
-            if not hostname or "." not in hostname:
-                issues.append(
-                    "The address does not look like a complete domain name."
-                )
 
-            # Detect misleading user information before the host
-            if parsed.username is not None or parsed.password is not None:
-                issues.append(
-                    "The URL contains user-information before the host, "
-                    "which can disguise the actual destination."
-                )
-
-            # Detect IP address hosts
-            if hostname and re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", hostname):
-                issues.append(
-                    "The host looks like an IP address instead of a domain name."
-                )
-
-            # Detect internationalized domain labels
-            if any(
-                label.lower().startswith("xn--")
-                for label in hostname.split(".")
-            ):
-                issues.append(
-                    "The domain contains an encoded internationalized label. "
-                    "Check carefully for lookalike characters."
-                )
-
-            # Detect common URL-shortening services
-            shorteners = {
-                "bit.ly",
-                "tinyurl.com",
-                "t.co",
-                "is.gd",
-                "cutt.ly",
-                "rb.gy",
-                "shorturl.at",
-            }
-
-            if hostname.lower() in shorteners:
-                issues.append(
-                    "This is a URL-shortening service. The final destination "
-                    "is not obvious from the shortened address."
-                )
-
-            # Detect common deceptive URL patterns
-            if "@" in parsed.netloc:
-                issues.append(
-                    "The address contains an @ symbol in its host section. "
-                    "Inspect the actual destination carefully."
-                )
-
-            if hostname.count(".") >= 4:
-                issues.append(
-                    "The domain has several subdomain levels. "
-                    "Check which organization actually owns it."
-                )
-
-            if len(candidate) > 200:
-                issues.append(
-                    "The URL is unusually long and may be harder to inspect."
-                )
-
-            if scheme == "http":
-                issues.append(
-                    "This link uses HTTP rather than HTTPS, so the connection "
-                    "does not provide HTTPS encryption."
-                )
-
-            # Check suspicious terms in the hostname only.
-            suspicious_terms = (
-                "verify",
-                "login",
-                "secure",
-                "account",
-                "wallet",
-                "password",
-                "update",
-                "confirm",
-            )
-
-            hostname_parts = hostname.lower().replace("-", ".").split(".")
-            matched_terms = [
-                term
-                for term in suspicious_terms
-                if any(term in part for part in hostname_parts)
-            ]
-
-            if matched_terms:
-                issues.append(
-                    "The domain contains terms often used in account-related "
-                    "links. These words alone do not prove a scam."
-                )
-
-            st.subheader("URL Inspection Results")
-            st.write(
-                f"**Detected domain:** {hostname or 'Could not identify'}"
-            )
-
-            if issues:
-                st.warning(
-                    "Potential warning signs found. This does not prove "
-                    "the link is malicious."
-                )
-
-                for issue in issues:
-                    st.write(f"- {issue}")
-            else:
-                st.success(
-                    "No obvious warning signs were detected by these basic checks."
-                )
-                st.caption(
-                    "This does not mean the link is safe."
-                )
-
-            st.markdown("**Safety advice**")
-            st.write(
-                "For important accounts, use the official app or type the "
-                "known website address yourself. Do not enter passwords, "
-                "payment details, or OTPs on an untrusted page."
-            )
-
-            st.caption(
-                "PrayShield inspected the URL text only. It did not visit "
-                "the website, verify its ownership, or check live threat databases."
-            )
+# --------------------------------------------------
+# FOOTER
+# --------------------------------------------------
 
 st.divider()
+
 st.caption(
-    "PrayShield is an early prototype. AI and URL checks can make mistakes; "
-    "verify important requests through official channels."
+    "PrayShield | Safer Today. Stronger Tomorrow."
+)
+
+st.caption(
+    "PrayShield is an early-stage digital safety product. "
+    "Its AI and URL checks may make mistakes and should not "
+    "replace independent verification or security software."
 )
